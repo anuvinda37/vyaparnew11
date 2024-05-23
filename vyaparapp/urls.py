@@ -583,7 +583,9 @@ urlpatterns = [
     path('stock_summary_date_filter', views.stock_summary_date_filter, name='stock_summary_date_filter'),
     path('sendEmail_stock_summary', views.sendEmail_stock_summary, name='sendEmail_stock_summary'),
     path('expense_report',views.expense_report,name='expense_report'),
+   
     path('send_estimate_via_mail',views.send_estimate_via_mail,name='send_estimate_via_mail'),
+    path(' outstanding_receivable',views. outstanding_receivable,name=' outstanding_receivable'),
     re_path(r'^static/(?P<path>.*)$', serve,{'document_root': settings.STATIC_ROOT}),
     
 ]

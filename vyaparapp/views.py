@@ -17890,4 +17890,28 @@ def send_estimate_via_mail(request):
     else:
         message = 'Report cannot be sent..!'
         return JsonResponse({'message': message})
+def outstanding_receivable(request):
+    staff_id = request.session.get('staff_id')
+    staff = staff_details.objects.get(id=staff_id)
+    allmodules = modules_list.objects.get(company=staff.company, status='New')
+
+    from_date = request.GET.get('from_date')
+    to_date = request.GET.get('to_date')
+
+    expenses = Expense.objects.filter(staff_id__company=staff.company)
     
+    if from_date and to_date:
+        expenses = expenses.filter(expense_date__range=[from_date, to_date])
+
+    # Calculate the totals
+    total_expenses = sum(expense.total for expense in expenses)
+    
+    # Passing the data to the template
+    context = {
+        'staff': staff,
+        'allmodules': allmodules,
+        'expenses': expenses,
+        'total_expenses': total_expenses,
+    }
+    
+    return render(request, 'company/outstanding_receivable.html', context)    
