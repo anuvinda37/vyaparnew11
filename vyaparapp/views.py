@@ -17891,27 +17891,32 @@ def send_estimate_via_mail(request):
         message = 'Report cannot be sent..!'
         return JsonResponse({'message': message})
 def outstanding_receivable(request):
-    staff_id = request.session.get('staff_id')
+    if 'staff_id' in request.session:
+        if request.session.has_key('staff_id'):
+            staff_id = request.session['staff_id']
+        else:
+            return redirect('/')
+    
     staff = staff_details.objects.get(id=staff_id)
+    company_instance = company.objects.get(id=staff.company.id)
+    salesinvoices = SalesInvoice.objects.filter(company=company_instance)
     allmodules = modules_list.objects.get(company=staff.company, status='New')
+    # Aggregate data
+    outstanding_data = {}
+    for invoice in salesinvoices:
+        if invoice.party.party_name not in outstanding_data:
+            outstanding_data[invoice.party.party_name] = {
+                'balance_amount': 0.0,  # Initialize as a float
+                'invoice_count': 0,
+                'invoices': []
+            }
+        outstanding_data[invoice.party.party_name]['balance_amount'] += float(invoice.totalbalance)
+        outstanding_data[invoice.party.party_name]['invoice_count'] += 1
+        outstanding_data[invoice.party.party_name]['invoices'].append(invoice)
 
-    from_date = request.GET.get('from_date')
-    to_date = request.GET.get('to_date')
-
-    expenses = Expense.objects.filter(staff_id__company=staff.company)
-    
-    if from_date and to_date:
-        expenses = expenses.filter(expense_date__range=[from_date, to_date])
-
-    # Calculate the totals
-    total_expenses = sum(expense.total for expense in expenses)
-    
-    # Passing the data to the template
     context = {
         'staff': staff,
+        'outstanding_data': outstanding_data,
         'allmodules': allmodules,
-        'expenses': expenses,
-        'total_expenses': total_expenses,
     }
-    
-    return render(request, 'company/outstanding_receivable.html', context)    
+    return render(request, 'company/outstanding_receivable.html', context)
