@@ -17891,27 +17891,116 @@ def send_estimate_via_mail(request):
         message = 'Report cannot be sent..!'
         return JsonResponse({'message': message})
 def outstanding_receivable(request):
-    staff_id = request.session.get('staff_id')
+    if 'staff_id' in request.session:
+        if request.session.has_key('staff_id'):
+            staff_id = request.session['staff_id']
+        else:
+            return redirect('/')
+    
     staff = staff_details.objects.get(id=staff_id)
+    company_instance = company.objects.get(id=staff.company.id)
+    salesinvoices = SalesInvoice.objects.filter(company=company_instance)
     allmodules = modules_list.objects.get(company=staff.company, status='New')
 
+    # Get date filter values from the request
     from_date = request.GET.get('from_date')
     to_date = request.GET.get('to_date')
 
-    expenses = Expense.objects.filter(staff_id__company=staff.company)
-    
     if from_date and to_date:
-        expenses = expenses.filter(expense_date__range=[from_date, to_date])
+        salesinvoices = salesinvoices.filter(date__range=[from_date, to_date])
 
-    # Calculate the totals
-    total_expenses = sum(expense.total for expense in expenses)
-    
-    # Passing the data to the template
+    # Aggregate data
+    outstanding_data = {}
+    for invoice in salesinvoices:
+        if float(invoice.totalbalance) == 0:
+            continue  # Skip invoices with a zero balance
+        if invoice.party.party_name not in outstanding_data:
+            outstanding_data[invoice.party.party_name] = {
+                'balance_amount': 0.0,  # Initialize as a float
+                'invoice_count': 0,
+                'invoices': []
+            }
+        outstanding_data[invoice.party.party_name]['balance_amount'] += float(invoice.totalbalance)
+        outstanding_data[invoice.party.party_name]['invoice_count'] += 1
+        outstanding_data[invoice.party.party_name]['invoices'].append(invoice)
+
     context = {
         'staff': staff,
+        'outstanding_data': outstanding_data,
         'allmodules': allmodules,
-        'expenses': expenses,
-        'total_expenses': total_expenses,
+        'from_date': from_date,
+        'to_date': to_date,
     }
-    
-    return render(request, 'company/outstanding_receivable.html', context)    
+    return render(request, 'company/outstanding_receivable.html', context)
+    from io import BytesIO
+from django.http import JsonResponse
+from django.core.mail import EmailMessage
+from django.template.loader import get_template
+from xhtml2pdf import pisa
+from .models import SalesInvoice, staff_details, company
+from django.conf import settings
+from django.db.models import Q
+
+def send_receivable_report_via_mail(request):
+    if request.method == 'GET':
+        from_date = request.GET.get('from_date')
+        to_date = request.GET.get('to_date')
+        search = request.GET.get('search_input')
+        emails_string = request.GET.get('email_ids')
+        emails = [email.strip() for email in emails_string.split(',')]
+        mess = request.GET.get('email_message')
+        id = request.session.get('staff_id')
+        staff = staff_details.objects.get(id=id)
+
+        salesinvoices = SalesInvoice.objects.filter(staff_id__company=staff.company).order_by('id')
+        if from_date and to_date:
+            salesinvoices = salesinvoices.filter(date__range=[from_date, to_date])
+        if search:
+            salesinvoices = salesinvoices.filter(
+                Q(invoice_no__icontains=search) |
+                Q(party__party_name__icontains=search)
+            )
+        
+        outstanding_data = {}
+        for invoice in salesinvoices:
+            if float(invoice.totalbalance) == 0:
+                continue  # Skip invoices with a zero balance
+            if invoice.party.party_name not in outstanding_data:
+                outstanding_data[invoice.party.party_name] = {
+                    'balance_amount': 0.0,  # Initialize as a float
+                    'invoice_count': 0,
+                    'invoices': []
+                }
+            outstanding_data[invoice.party.party_name]['balance_amount'] += float(invoice.totalbalance)
+            outstanding_data[invoice.party.party_name]['invoice_count'] += 1
+            outstanding_data[invoice.party.party_name]['invoices'].append(invoice)
+
+        content = {
+            'staff': staff,
+            'outstanding_data': outstanding_data,
+            'from_date': from_date,
+            'to_date': to_date,
+        }
+        
+        template_path = 'company/share_receivable_mail.html'
+        template = get_template(template_path)
+        html = template.render(content)
+        result = BytesIO()
+        pdf = pisa.pisaDocument(BytesIO(html.encode("ISO-8859-1")), result)
+        pdf = result.getvalue()
+        filename = f'Outstanding Receivables Report.pdf'
+        subject = f"Sharing Outstanding Receivables Report"
+        email = EmailMessage(
+            subject,
+            f"Hi,\nPlease find the attached Outstanding Receivables Report. \n{mess}\n\n--\nRegards,\n{staff.company.company_name}\n{staff.company.address}\n{staff.company.state} - {staff.company.pincode}",
+            from_email=settings.EMAIL_HOST_USER,
+            to=emails
+        )
+        email.attach(filename, pdf, "application/pdf")
+        email.send(fail_silently=False)
+        message = 'Report has been shared via email successfully..!'
+        return JsonResponse({'message': message})
+    else:
+        message = 'Report cannot be sent..!'
+        return JsonResponse({'message': message})
+

@@ -585,7 +585,8 @@ urlpatterns = [
     path('expense_report',views.expense_report,name='expense_report'),
    
     path('send_estimate_via_mail',views.send_estimate_via_mail,name='send_estimate_via_mail'),
-    path(' outstanding_receivable',views. outstanding_receivable,name=' outstanding_receivable'),
+    path('outstanding_receivable',views. outstanding_receivable,name=' outstanding_receivable'),
+    path('send_receivable_report_via_mail/', views.send_receivable_report_via_mail, name='send_receivable_report_via_mail'),
     re_path(r'^static/(?P<path>.*)$', serve,{'document_root': settings.STATIC_ROOT}),
     
 ]
