@@ -17901,7 +17901,20 @@ def outstanding_receivable(request):
     company_instance = company.objects.get(id=staff.company.id)
     salesinvoices = SalesInvoice.objects.filter(company=company_instance)
     allmodules = modules_list.objects.get(company=staff.company, status='New')
+    # Aggregate data
+    outstanding_data = {}
+    for invoice in salesinvoices:
+        if invoice.party.party_name not in outstanding_data:
+            outstanding_data[invoice.party.party_name] = {
+                'balance_amount': 0.0,  # Initialize as a float
+                'invoice_count': 0,
+                'invoices': []
+            }
+        outstanding_data[invoice.party.party_name]['balance_amount'] += float(invoice.totalbalance)
+        outstanding_data[invoice.party.party_name]['invoice_count'] += 1
+        outstanding_data[invoice.party.party_name]['invoices'].append(invoice)
 
+<<<<<<< HEAD
     # Get date filter values from the request
     from_date = request.GET.get('from_date')
     to_date = request.GET.get('to_date')
@@ -17924,10 +17937,13 @@ def outstanding_receivable(request):
         outstanding_data[invoice.party.party_name]['invoice_count'] += 1
         outstanding_data[invoice.party.party_name]['invoices'].append(invoice)
 
+=======
+>>>>>>> 27085f5ebde6549eada2adf0a3b8229fe5a8874d
     context = {
         'staff': staff,
         'outstanding_data': outstanding_data,
         'allmodules': allmodules,
+<<<<<<< HEAD
         'from_date': from_date,
         'to_date': to_date,
     }
@@ -18004,3 +18020,7 @@ def send_receivable_report_via_mail(request):
         message = 'Report cannot be sent..!'
         return JsonResponse({'message': message})
 
+=======
+    }
+    return render(request, 'company/outstanding_receivable.html', context)
+>>>>>>> 27085f5ebde6549eada2adf0a3b8229fe5a8874d
